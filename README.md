@@ -1,0 +1,1 @@
+# mackerel-plugin-mongodb-slow-queries
