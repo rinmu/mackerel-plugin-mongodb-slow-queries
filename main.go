@@ -49,7 +49,7 @@ func (m MongoDBSlowQueriesPlugin) FetchMetrics() (map[string]float64, error) {
 	}
 
 	collection := session.DB(m.Database).C("system.profile")
-	one_minute_ago := time.Unix(time.Now().Unix()-60, 0)
+	one_minute_ago := time.Now().Add(time.Duration(-1) * time.Minute)
 
 	count, err := collection.Find(bson.M{"ts": bson.M{"$gt": one_minute_ago}}).Count()
 	if err != nil {
