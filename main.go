@@ -48,7 +48,7 @@ func (m MongoDBSlowQueriesPlugin) FetchMetrics() (map[string]float64, error) {
 		return nil, err
 	}
 
-	session.SetMode(mgo.Eventual, true)
+	session.SetMode(mgo.Nearest, true)
 
 	collection := session.DB(m.Database).C("system.profile")
 	one_minute_ago := time.Now().Add(time.Duration(-1) * time.Minute)
