@@ -4,10 +4,12 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/exec"
+	"regexp"
+	"strconv"
 	"time"
 
 	"github.com/globalsign/mgo"
-	"github.com/globalsign/mgo/bson"
 
 	mp "github.com/mackerelio/go-mackerel-plugin"
 )
@@ -38,6 +40,20 @@ func (m MongoDBSlowQueriesPlugin) GraphDefinition() map[string]mp.Graphs {
 				{Name: "count", Label: "Slow Queries"},
 			},
 		},
+		"slow_queries_total": {
+			Label: "MongoDB Slow Queries",
+			Unit:  "integer",
+			Metrics: []mp.Metrics{
+				{Name: "total_time", Label: "Slow Queries Total Time"},
+			},
+		},
+		"slow_queries_average": {
+			Label: "MongoDB Slow Queries",
+			Unit:  "float",
+			Metrics: []mp.Metrics{
+				{Name: "average_time", Label: "Slow Queries Average Time"},
+			},
+		},
 	}
 }
 
@@ -50,15 +66,43 @@ func (m MongoDBSlowQueriesPlugin) FetchMetrics() (map[string]float64, error) {
 
 	session.SetMode(mgo.Nearest, true)
 
-	collection := session.DB(m.Database).C("system.profile")
-	one_minute_ago := time.Now().Add(time.Duration(-1) * time.Minute)
+	one_minute_ago := time.Now().Add(time.Duration(-1) * time.Minute).Format(time.RFC3339)
 
-	count, err := collection.Find(bson.M{"ts": bson.M{"$gt": one_minute_ago}}).Count()
+	command := fmt.Sprintf(`mongo %s --eval `, m.Database)
+	query := fmt.Sprintf(`'rs.slaveOk(); db.system.profile.aggregate([
+		{$match: {ts: {$gt: ISODate("%s")}}},
+		{$group: {_id: "", average_time: {$avg: "$millis"}, count: {$sum:1}, total_time: {$sum:"$millis"}}}
+	]);'`, one_minute_ago)
+	grep := "|grep average_time"
+
+	out, err := exec.Command("bash", "-c", command+query+grep).Output()
+
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	re := regexp.MustCompile(`"average_time" : (.*?),`)
+	match := re.FindStringSubmatch(string(out))
+	averageTime, err := strconv.ParseFloat(match[1], 64)
+
+	re = regexp.MustCompile(`"count" : (.*?),`)
+	match = re.FindStringSubmatch(string(out))
+	count, err := strconv.ParseFloat(match[1], 64)
+
+	re = regexp.MustCompile(`"total_time" : (.*?)\s}`)
+	match = re.FindStringSubmatch(string(out))
+	totalTime, err := strconv.ParseFloat(match[1], 64)
+
 	if err != nil {
 		return nil, err
 	}
 
-	return map[string]float64{"count": float64(count)}, err
+	return map[string]float64{
+		"count":        count,
+		"total_time":   totalTime,
+		"average_time": averageTime,
+	}, err
 }
 
 // Do the plugin

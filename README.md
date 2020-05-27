@@ -61,5 +61,7 @@ command = "/path/to/mackerel-plugin-mongodb-slow-queries -database=your_database
 
 ```
 $ ./mackerel-plugin-mongodb-slow-queries -database=test
-mongodb.slow_queries.count      79      1543970297
+mongodb.slow_queries.count      181     1590567211
+mongodb.slow_queries_total.total_time 37      1590567211
+mongodb.slow_queries_average.average_time     0.204420        1590567211
 ```
